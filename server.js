@@ -8,14 +8,8 @@ require('dotenv').config();
 const app = express();
 
 // --- CONFIGURATION ---
-// Get port from command line arguments or environment variables
-let port = 3000;
-const portArgIndex = process.argv.indexOf('--port');
-if (portArgIndex !== -1 && process.argv.length > portArgIndex + 1) {
-    port = parseInt(process.argv[portArgIndex + 1], 10);
-} else if (process.env.PORT) {
-    port = parseInt(process.env.PORT, 10);
-}
+// The PORT environment variable is provided by the Cloud Run environment.
+const port = process.env.PORT || 3000;
 
 // --- CACHING ---
 // Simple in-memory cache for airport search results.
@@ -63,17 +57,7 @@ app.post('/api/search-flights', async (req, res) => {
         const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
         const prompt = `
-            Suggest 3 diverse and interesting international flight destinations for a trip of ${numberOfDays} days, departing from ${departureAirport}.\n
-            Provide the response as a valid JSON array of objects. Each object must have a "city" (string) and "iataCode" (string) key. The "iataCode" must be the main airport code for that city.\n
-            Do not include any other text or formatting outside of the JSON array.\n
-            Make sure the destinations are geographically diverse.\n
-\n
-            Example format:\n
-            [\n
-                { "city": "Paris, France", "iataCode": "CDG" },\n
-                { "city": "Tokyo, Japan", "iataCode": "HND" }\n
-            ]\n
-        `;
+            Suggest 3 diverse and interesting international flight destinations for a trip of ${numberOfDays} days, departing from ${departureAirport}.\n\n            Provide the response as a valid JSON array of objects. Each object must have a "city" (string) and "iataCode" (string) key. The "iataCode" must be the main airport code for that city.\n\n            Do not include any other text or formatting outside of the JSON array.\n\n            Make sure the destinations are geographically diverse.\n\n\n\n            Example format:\n\n            [\n\n                { "city": "Paris, France", "iataCode": "CDG" },\n\n                { "city": "Tokyo, Japan", "iataCode": "HND" }\n\n            ]\n\n        `;
 
         const geminiResult = await model.generateContent(prompt);
         const geminiResponse = await geminiResult.response;
@@ -168,7 +152,6 @@ app.get('/api/search-airports', async (req, res) => {
 
 
 // --- SERVER START ---
-app.listen(port, () => {
-    console.log(`Server listening at http://localhost:${port}`);
-    console.log('Please ensure your GEMINI_API_KEY, AMADEUS_API_KEY, and AMADEUS_API_SECRET are set in your .env file.');
+app.listen(port, '0.0.0.0', () => {
+    console.log(`Server listening on port ${port}`);
 });
