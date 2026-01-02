@@ -3,7 +3,14 @@ const express = require('express');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const Amadeus = require('amadeus');
 const rateLimit = require('express-rate-limit');
-require('dotenv').config();
+
+// --- ENVIRONMENT CONFIGURATION ---
+// Only load .env file in local development. In production, variables are
+// injected by the cloud environment.
+if (process.env.NODE_ENV !== 'production') {
+    require('dotenv').config();
+}
+
 
 const app = express();
 
