@@ -2,6 +2,7 @@
 const express = require('express');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const Amadeus = require('amadeus');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const app = express();
@@ -16,9 +17,27 @@ if (portArgIndex !== -1 && process.argv.length > portArgIndex + 1) {
     port = parseInt(process.env.PORT, 10);
 }
 
+// --- CACHING ---
+// Simple in-memory cache for airport search results.
+const airportCache = new Map();
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+// --- RATE LIMITING ---
+// Define a rate limiter for all API routes to prevent abuse.
+const apiLimiter = rateLimit({
+	windowMs: 15 * 60 * 1000, // 15 minutes
+	max: 100, // Limit each IP to 100 requests per windowMs
+	standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+	legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+	message: 'Too many requests from this IP, please try again after 15 minutes',
+});
+
+
 // --- MIDDLEWARE ---
 app.use(express.static('public'));
 app.use(express.json());
+// Apply the rate limiter to all API-bound routes.
+app.use('/api/', apiLimiter);
 
 // --- API CLIENTS ---
 // Initialize Google Generative AI
@@ -44,7 +63,17 @@ app.post('/api/search-flights', async (req, res) => {
         const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
         const prompt = `
-            Suggest 3 diverse and interesting international flight destinations for a trip of ${numberOfDays} days, departing from ${departureAirport}.\n            Provide the response as a valid JSON array of objects. Each object must have a "city" (string) and "iataCode" (string) key. The "iataCode" must be the main airport code for that city.\n            Do not include any other text or formatting outside of the JSON array.\n            Make sure the destinations are geographically diverse.\n\n            Example format:\n            [\n                { "city": "Paris, France", "iataCode": "CDG" },\n                { "city": "Tokyo, Japan", "iataCode": "HND" }\n            ]\n        `;
+            Suggest 3 diverse and interesting international flight destinations for a trip of ${numberOfDays} days, departing from ${departureAirport}.\n
+            Provide the response as a valid JSON array of objects. Each object must have a "city" (string) and "iataCode" (string) key. The "iataCode" must be the main airport code for that city.\n
+            Do not include any other text or formatting outside of the JSON array.\n
+            Make sure the destinations are geographically diverse.\n
+\n
+            Example format:\n
+            [\n
+                { "city": "Paris, France", "iataCode": "CDG" },\n
+                { "city": "Tokyo, Japan", "iataCode": "HND" }\n
+            ]\n
+        `;
 
         const geminiResult = await model.generateContent(prompt);
         const geminiResponse = await geminiResult.response;
@@ -99,19 +128,36 @@ app.get('/api/search-airports', async (req, res) => {
     if (!keyword) {
         return res.status(400).json({ error: 'Keyword is required' });
     }
+    
+    // --- CACHE LOOKUP ---
+    const cacheKey = keyword.toUpperCase();
+    if (airportCache.has(cacheKey)) {
+        console.log(`Cache HIT for keyword: ${cacheKey}`);
+        return res.json(airportCache.get(cacheKey));
+    }
+    console.log(`Cache MISS for keyword: ${cacheKey}`);
+
 
     try {
-        // FINAL FIX: The Amadeus API expects a comma-separated string for multiple subTypes,
-        // not an array as the documentation might suggest.
         const response = await amadeus.referenceData.locations.get({
-            keyword: keyword.toUpperCase(),
+            keyword: cacheKey,
             subType: 'AIRPORT,CITY', 
             page: { limit: 15 } 
         });
 
-        res.json(response.data);
+        const responseData = response.data;
+
+        // --- CACHE STORE ---
+        // Store the successful response in the cache
+        airportCache.set(cacheKey, responseData);
+        // Set a timer to clear this specific cache entry after 24 hours.
+        setTimeout(() => {
+            airportCache.delete(cacheKey);
+            console.log(`Cache expired and cleared for keyword: ${cacheKey}`);
+        }, CACHE_TTL_MS);
+
+        res.json(responseData);
     } catch (error) {
-        // Deeper error logging
         console.error('Amadeus API Error:', JSON.stringify(error, null, 2));
         res.status(500).json({ 
             error: 'Failed to fetch airport data', 
