@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Flight Finder</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <img src="https://picsum.photos/seed/flight/1200/300" alt="AI generated image of a plane" class="header-banner">
+        <h1>AI Flight Finder</h1>
+    </header>
+    <main>
+        <div class="search-container">
+            <h2>Find Your Next Adventure</h2>
+            <div class="input-group">
+                <label for="departure">Departure Airport:</label>
+                <input type="text" id="departure" name="departure" placeholder="e.g., JFK">
+                <div id="departure-suggestions" class="suggestions-container"></div>
+            </div>
+            <div class="input-group">
+                <label for="days">Number of days for your trip:</label>
+                <input type="number" id="days" name="days" min="1" placeholder="e.g., 7">
+            </div>
+            <button id="search-button">Search Flights</button>
+        </div>
+        <div class="results-container">
+            <h2>Recommended Flights</h2>
+            <div id="results"></div>
+        </div>
+    </main>
+    <script src="main.js"></script>
+</body>
+</html>
