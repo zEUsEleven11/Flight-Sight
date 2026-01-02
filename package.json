@@ -4,7 +4,7 @@
   "description": "AI-powered flight search application",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node server.js --port $PORT",
     "dev": "node server.js"
   },
   "dependencies": {
